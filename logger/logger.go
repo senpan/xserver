@@ -32,6 +32,9 @@ func init() {
 func SetLogger(log Logger) {
 	logLock.Lock()
 	defer logLock.Unlock()
+	if logger != nil {
+		logger.Close()
+	}
 	logger = log
 }
 
