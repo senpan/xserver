@@ -6,12 +6,13 @@ import (
 	"syscall"
 	"time"
 
-	logger "github.com/senpan/xlogger"
-
 	"github.com/senpan/xserver/bootstrap"
 	"github.com/senpan/xserver/consumer/core"
 	"github.com/senpan/xserver/consumer/internal/ctrl"
+	"github.com/senpan/xserver/logger"
 )
+
+type MQHandler func(topic string, data []byte, other ...string) error
 
 type MQConsumerServer struct {
 	funcSetter *bootstrap.FuncSetter
@@ -31,7 +32,7 @@ func NewMQConsumerServer(path string) *MQConsumerServer {
 	return srv
 }
 func (s *MQConsumerServer) Serve() (err error) {
-	if err = s.funcSetter.RunServerStartFunc(); err != nil {
+	if err = s.funcSetter.RunStartFunc(); err != nil {
 		return nil
 	}
 
@@ -39,15 +40,16 @@ func (s *MQConsumerServer) Serve() (err error) {
 	go s.doJob()
 
 	<-s.exit
-	logger.W("xserver.MQConsumerServer", "Stop Complete.")
+	logger.GetLogger().Warn("xserver.MQConsumerServer", "Stop Complete.")
 	return nil
 }
 
 func (s *MQConsumerServer) waitShutdown() {
-	logger.W("xserver.MQConsumerServer.Stop", "Process Stop...")
+	logger.GetLogger().Warn("xserver.MQConsumerServer.Stop", "Process Stop...")
+
 	s.ctl.Close()
-	s.funcSetter.RunServerStopFunc()
-	logger.W("xserver.MQConsumerServer.Stop", "Process Stop Complete")
+	s.funcSetter.RunStopFunc()
+	logger.GetLogger().Warn("xserver.MQConsumerServer.Stop", "Process Stop Complete")
 	time.Sleep(1 * time.Second)
 	s.exit <- struct{}{}
 }
@@ -68,10 +70,10 @@ func (s *MQConsumerServer) doJob() {
 	s.ctl = c
 }
 
-func (s *MQConsumerServer) AddServerStartFunc(fns ...bootstrap.ServerStartFunc) {
-	s.funcSetter.AddServerStartFunc(fns...)
+func (s *MQConsumerServer) AddStartFunc(fns ...bootstrap.ServerStartFunc) {
+	s.funcSetter.AddStartFunc(fns...)
 }
 
-func (s *MQConsumerServer) AddServerStopFunc(fns ...bootstrap.ServerStopFunc) {
-	s.funcSetter.AddServerStopFunc(fns...)
+func (s *MQConsumerServer) AddStopFunc(fns ...bootstrap.ServerStopFunc) {
+	s.funcSetter.AddStopFunc(fns...)
 }

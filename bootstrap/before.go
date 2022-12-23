@@ -1,14 +1,14 @@
 package bootstrap
 
 import (
-	logger "github.com/senpan/xlogger"
+	"github.com/senpan/xserver/logger"
 )
 
 type ServerStartFunc func() error
 
-func InitLogger(version string) ServerStartFunc {
+func SetXServerLogger(log logger.Logger) ServerStartFunc {
 	return func() error {
-		logger.InitXLogger(version)
+		logger.SetLogger(log)
 		return nil
 	}
 }

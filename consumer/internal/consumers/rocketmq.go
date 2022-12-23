@@ -2,6 +2,7 @@ package consumers
 
 import (
 	"context"
+	"errors"
 	"runtime/debug"
 	"sync"
 
@@ -11,10 +12,8 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"github.com/spf13/cast"
 
-	logger "github.com/senpan/xlogger"
-
 	"github.com/senpan/xserver/consumer/core"
-	"github.com/senpan/xserver/consumer/internal/log"
+	"github.com/senpan/xserver/logger"
 )
 
 type RocketMQConsumer struct {
@@ -51,18 +50,18 @@ type RocketMQCredentials struct {
 func NewRocketMQConsumer(configs []*RocketMQConfig, handlers map[string]core.MQHandler) (consumer *RocketMQConsumer, err error) {
 	tag := "xserver.consumer.rocketmq"
 	if len(configs) == 0 {
-		err = logger.NewError("rocketmq config not found")
+		err = errors.New("rocketmq config not found")
 		return
 	}
 	consumer = new(RocketMQConsumer)
 	consumer.exit = make(chan struct{})
 	consumer.wg = new(sync.WaitGroup)
 
-	rlog.SetLogger(&log.RocketMQLog{})
+	rlog.SetLogger(&logger.RocketMQLog{})
 
 	for _, config := range configs {
 		if h, ok := handlers[config.Handler]; !ok {
-			logger.E(tag, "topic:%s, not found mq handler", config.Topic)
+			logger.GetLogger().Errorf(tag, "topic:%s, not found mq handler", config.Topic)
 			continue
 		} else {
 			consumer.callback = h
@@ -74,10 +73,10 @@ func NewRocketMQConsumer(configs []*RocketMQConfig, handlers map[string]core.MQH
 
 func (r *RocketMQConsumer) Close() {
 	tag := "xserver.consumer.rocketmq"
-	logger.W(tag, "starting close consumers")
+	logger.GetLogger().Warnf(tag, "Start close consumers")
 	close(r.exit)
 	r.wg.Wait()
-	logger.W(tag, "close consumers done")
+	logger.GetLogger().Warnf(tag, "Close consumers done")
 }
 
 func (r *RocketMQConsumer) pushConsumer(kfg *RocketMQConfig) {
@@ -99,7 +98,7 @@ func (r *RocketMQConsumer) pushConsumer(kfg *RocketMQConfig) {
 	)
 
 	if err != nil {
-		logger.E(tag, "[Push Consumer] new push consumers error:%v", err)
+		logger.GetLogger().Errorf(tag, "[Push Consumer] new push consumers error:%v", err)
 		return
 	}
 
@@ -113,10 +112,10 @@ func (r *RocketMQConsumer) pushConsumer(kfg *RocketMQConfig) {
 			for {
 				ret := r.callback(me.Topic, me.Body, me.GetTags())
 				if ret == nil {
-					logger.D(tag, "[Push Consumer] success,topic:%s,tags:%s,handler:%s", me.Topic, me.GetTags(), kfg.Handler)
+					logger.GetLogger().Debugf(tag, "[Push Consumer] success,topic:%s,tags:%s,handler:%s", me.Topic, me.GetTags(), kfg.Handler)
 					break
 				} else {
-					logger.E(tag, "[Push Consumer] failed,topic:%s,tags:%s,val:%s", me.Topic, me.GetTags(), string(me.Body))
+					logger.GetLogger().Errorf(tag, "[Push Consumer] failed,topic:%s,tags:%s,val:%s", me.Topic, me.GetTags(), string(me.Body))
 					// TODO:retry and send fail topic
 					break
 				}
@@ -125,18 +124,18 @@ func (r *RocketMQConsumer) pushConsumer(kfg *RocketMQConfig) {
 		return consumer.ConsumeSuccess, nil
 	})
 	if err != nil {
-		logger.E(tag, "[Push Consumer] subscribe error:%v", err)
+		logger.GetLogger().Errorf(tag, "[Push Consumer] subscribe error:%v", err)
 		return
 	}
 	err = c.Start()
 	if err != nil {
-		logger.E(tag, "[Push Consumer] start error:%v", err)
+		logger.GetLogger().Errorf(tag, "[Push Consumer] start error:%v", err)
 		return
 	}
 	for {
 		select {
 		case <-r.exit:
-			logger.W(tag, "[Push Consumer] accept quit signal")
+			logger.GetLogger().Warnf(tag, "[Push Consumer] accept quit signal")
 			return
 		}
 	}
@@ -179,9 +178,9 @@ func (r *RocketMQConsumer) recovery() {
 	tag := "xserver.consumer.rocketmq"
 	if rec := recover(); rec != nil {
 		if err, ok := rec.(error); ok {
-			logger.E(tag, "[Recovery] Unhandled error: %+v\n stack:%s", err.Error(), cast.ToString(debug.Stack()))
+			logger.GetLogger().Errorf(tag, "[Recovery] Unhandled error: %+v\n stack:%s", err.Error(), cast.ToString(debug.Stack()))
 		} else {
-			logger.E(tag, "[Recovery] Panic: %+v\n stack:%s", rec, cast.ToString(debug.Stack()))
+			logger.GetLogger().Errorf(tag, "[Recovery] Panic: %+v\n stack:%s", rec, cast.ToString(debug.Stack()))
 		}
 	}
 }

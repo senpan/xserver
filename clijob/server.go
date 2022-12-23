@@ -7,10 +7,8 @@ import (
 	"syscall"
 	"time"
 
-	logger "github.com/senpan/xlogger"
-	"github.com/senpan/xtools/confx"
-
 	"github.com/senpan/xserver/bootstrap"
+	"github.com/senpan/xserver/logger"
 )
 
 type JobServer struct {
@@ -19,10 +17,6 @@ type JobServer struct {
 	jobs       map[string]JobHandler
 	cmdParser  CmdParser
 	exit       chan struct{} // 退出
-}
-
-func init() {
-	confx.InitConfig()
 }
 
 func NewJobServer(options ...OptionFunc) *JobServer {
@@ -45,7 +39,7 @@ func NewJobServer(options ...OptionFunc) *JobServer {
 
 func (js *JobServer) Serve() (err error) {
 
-	if err = js.funcSetter.RunServerStartFunc(); err != nil {
+	if err = js.funcSetter.RunStartFunc(); err != nil {
 		return nil
 	}
 
@@ -57,9 +51,8 @@ func (js *JobServer) Serve() (err error) {
 }
 
 func (js *JobServer) waitShutdown() {
-	logger.I("xserver.JobServer.Stop", "Stop...")
-
-	js.funcSetter.RunServerStopFunc()
+	logger.GetLogger().Infof("xserver.JobServer", "Stop...")
+	js.funcSetter.RunStopFunc()
 
 	time.Sleep(1 * time.Second)
 
@@ -90,7 +83,7 @@ func (js *JobServer) doJob() {
 
 	jobSelected, err := js.cmdParser.JobArgParse(js.jobs)
 	if err != nil {
-		logger.E(tag, "parse failed:%+v", err)
+		logger.GetLogger().Errorf(tag, "parse failed:%+v", err)
 		return
 	}
 
@@ -101,24 +94,24 @@ func (js *JobServer) doJob() {
 			defer wg.Done()
 			defer processMark(tag, "job name:"+job.Name)()
 			if err := job.Do(); err != nil {
-				logger.E(tag, "[%s] run failed,error: %+v", job.Name, err)
+				logger.GetLogger().Errorf(tag, "[%s] run failed,error: %+v", job.Name, err)
 			}
 		}(item)
 	}
 	wg.Wait()
 }
 
-func (js *JobServer) AddServerStartFunc(fns ...bootstrap.ServerStartFunc) {
-	js.funcSetter.AddServerStartFunc(fns...)
+func (js *JobServer) AddStartFunc(fns ...bootstrap.ServerStartFunc) {
+	js.funcSetter.AddStartFunc(fns...)
 }
 
-func (js *JobServer) AddServerStopFunc(fns ...bootstrap.ServerStopFunc) {
-	js.funcSetter.AddServerStopFunc(fns...)
+func (js *JobServer) AddStopFunc(fns ...bootstrap.ServerStopFunc) {
+	js.funcSetter.AddStopFunc(fns...)
 }
 
 func processMark(tag string, msg string) func() {
-	logger.I(tag, "[start] %s", msg)
+	logger.GetLogger().Infof(tag, "[start] %s", msg)
 	return func() {
-		logger.I(tag, "[end] %s", msg)
+		logger.GetLogger().Infof(tag, "[end] %s", msg)
 	}
 }

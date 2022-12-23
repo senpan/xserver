@@ -11,10 +11,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	logger "github.com/senpan/xlogger"
-	"github.com/senpan/xtools/confx"
-
 	"github.com/senpan/xserver/bootstrap"
+	"github.com/senpan/xserver/logger"
 )
 
 type Server struct {
@@ -46,7 +44,7 @@ func NewServer() *Server {
 func (s *Server) Serve() error {
 	tag := "xserver.GinServer.Serve"
 	var err error
-	err = s.funcSetter.RunServerStartFunc()
+	err = s.funcSetter.RunStartFunc()
 	if err != nil {
 		return err
 	}
@@ -56,11 +54,11 @@ func (s *Server) Serve() error {
 	} else {
 		signal.Notify(s.exit, os.Interrupt, syscall.SIGTERM)
 		go s.waitShutdown()
-		logger.I(tag, "http server start. Please visit %s", formatSvcAddr(s.server.Addr))
+		logger.GetLogger().Infof(tag, "http server start. Please visit %s\n", formatSvcAddr(s.server.Addr))
 		err = s.server.ListenAndServe()
 	}
 
-	s.funcSetter.RunServerStopFunc()
+	s.funcSetter.RunStopFunc()
 
 	return err
 }
@@ -72,13 +70,12 @@ func (s *Server) waitShutdown() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	logger.I(tag, "shutdown http server ...")
+	logger.GetLogger().Infof(tag, "shutdown http server ...")
 
 	err := s.server.Shutdown(ctx)
 	if err != nil {
-		logger.E(tag, "shutdown http server error:%+v", err)
+		logger.GetLogger().Errorf(tag, "shutdown http server error:%+v", err)
 	}
-	return
 }
 
 func (s *Server) GetServer() *http.Server {
@@ -89,20 +86,17 @@ func (s *Server) GetGinEngine() *gin.Engine {
 	return s.server.Handler.(*gin.Engine)
 }
 
-func (s *Server) AddServerStartFunc(fns ...bootstrap.ServerStartFunc) {
-	s.funcSetter.AddServerStartFunc(fns...)
+func (s *Server) AddStartFunc(fns ...bootstrap.ServerStartFunc) {
+	s.funcSetter.AddStartFunc(fns...)
 }
 
-func (s *Server) AddServerStopFunc(fns ...bootstrap.ServerStopFunc) {
-	s.funcSetter.AddServerStopFunc(fns...)
+func (s *Server) AddStopFunc(fns ...bootstrap.ServerStopFunc) {
+	s.funcSetter.AddStopFunc(fns...)
 }
 
-func (s *Server) InitConfig() bootstrap.ServerStartFunc {
+func (s *Server) InitConfig(conf ServerOptions) bootstrap.ServerStartFunc {
 	return func() error {
-		err := confx.ParseConfToStruct("Server", &s.opts)
-		if err != nil {
-			return err
-		}
+		s.opts = conf
 		s.server.Addr = s.opts.Addr
 		s.server.ReadTimeout = s.opts.ReadTimeout
 		s.server.WriteTimeout = s.opts.WriteTimeout

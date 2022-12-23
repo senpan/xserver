@@ -7,7 +7,7 @@ import (
 	"github.com/jpillora/overseer"
 	"github.com/spf13/cast"
 
-	logger "github.com/senpan/xlogger"
+	"github.com/senpan/xserver/logger"
 )
 
 var server = &http.Server{}
@@ -30,10 +30,10 @@ func oversee() {
 
 func prog(state overseer.State) {
 	tag := "xserver.GinServer.Program"
-	logger.I(tag, "app (%s) listening...", state.ID)
+	logger.GetLogger().Infof(tag, "app (%s) listening...", tag, state.ID)
 	err := server.Serve(state.Listener)
 	if err != nil {
-		logger.E(tag, "Unhandled error: %+v\n stack:%s", err.Error(), cast.ToString(debug.Stack()))
+		logger.GetLogger().Errorf(tag, "Unhandled error: %+v\n stack:%s", err, cast.ToString(debug.Stack()))
 	}
-	logger.I(tag, "app (%s) exiting...", state.ID)
+	logger.GetLogger().Infof(tag, "app (%s) exiting...", state.ID)
 }

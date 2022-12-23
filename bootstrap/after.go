@@ -1,13 +1,13 @@
 package bootstrap
 
 import (
-	logger "github.com/senpan/xlogger"
+	"github.com/senpan/xserver/logger"
 )
 
 type ServerStopFunc func()
 
-func CloseLogger() ServerStopFunc {
+func CloseXServerLogger() ServerStopFunc {
 	return func() {
-		logger.Close()
+		logger.GetLogger().Close()
 	}
 }

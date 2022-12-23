@@ -1,28 +1,24 @@
 package bootstrap
 
 type FuncSetter struct {
-	beforeFunc []ServerStartFunc
-	afterFunc  []ServerStopFunc
+	befFns []ServerStartFunc
+	aftFns []ServerStopFunc
 }
 
 func NewFuncSetter() *FuncSetter {
 	return &FuncSetter{}
 }
 
-func (fs *FuncSetter) AddServerStartFunc(fns ...ServerStartFunc) {
-	for _, fn := range fns {
-		fs.beforeFunc = append(fs.beforeFunc, fn)
-	}
+func (fs *FuncSetter) AddStartFunc(fns ...ServerStartFunc) {
+	fs.befFns = append(fs.befFns, fns...)
 }
 
-func (fs *FuncSetter) AddServerStopFunc(fns ...ServerStopFunc) {
-	for _, fn := range fns {
-		fs.afterFunc = append(fs.afterFunc, fn)
-	}
+func (fs *FuncSetter) AddStopFunc(fns ...ServerStopFunc) {
+	fs.aftFns = append(fs.aftFns, fns...)
 }
 
-func (fs *FuncSetter) RunServerStartFunc() error {
-	for _, fn := range fs.beforeFunc {
+func (fs *FuncSetter) RunStartFunc() error {
+	for _, fn := range fs.befFns {
 		err := fn()
 		if err != nil {
 			return err
@@ -32,8 +28,8 @@ func (fs *FuncSetter) RunServerStartFunc() error {
 	return nil
 }
 
-func (fs *FuncSetter) RunServerStopFunc() {
-	for _, fn := range fs.afterFunc {
+func (fs *FuncSetter) RunStopFunc() {
+	for _, fn := range fs.aftFns {
 		fn()
 	}
 }

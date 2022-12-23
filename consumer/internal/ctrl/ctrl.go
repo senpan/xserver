@@ -9,6 +9,7 @@ type Ctrl struct {
 	consumers *consumers.ConsumerManager
 }
 
+// NewCtrl 控制器
 func NewCtrl(path string, handlers map[string]core.MQHandler) *Ctrl {
 	c := new(Ctrl)
 	c.consumers = consumers.NewConsumerManager(path, handlers)

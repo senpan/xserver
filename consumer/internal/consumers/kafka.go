@@ -1,6 +1,7 @@
 package consumers
 
 import (
+	"errors"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -11,9 +12,8 @@ import (
 	cluster "github.com/bsm/sarama-cluster"
 	"github.com/spf13/cast"
 
-	logger "github.com/senpan/xlogger"
-
 	"github.com/senpan/xserver/consumer/core"
+	"github.com/senpan/xserver/logger"
 )
 
 var produce sarama.SyncProducer
@@ -48,8 +48,7 @@ type SASL struct {
 func NewKafkaConsumer(configs []*KafkaConfig, handlers map[string]core.MQHandler) (consumer *KafkaConsumer, err error) {
 	tag := "xserver.consumer.kafka"
 	if len(configs) == 0 {
-		err = logger.NewError("kafka config not found")
-		logger.E(tag, "kafka config not found")
+		err = errors.New("kafka config not found")
 		return
 	}
 	consumer = new(KafkaConsumer)
@@ -59,7 +58,7 @@ func NewKafkaConsumer(configs []*KafkaConfig, handlers map[string]core.MQHandler
 	go consumer.count()
 	for _, config := range configs {
 		if h, ok := handlers[config.Handler]; !ok {
-			logger.E(tag, "topic:%s, not found mq handler", config.Topic)
+			logger.GetLogger().Errorf("[%s] topic:%s, not found mq handler", tag, config.Topic)
 			continue
 		} else {
 			consumer.callback = h
@@ -74,7 +73,7 @@ func NewKafkaConsumer(configs []*KafkaConfig, handlers map[string]core.MQHandler
 
 func (k *KafkaConsumer) Close() {
 	tag := "xserver.consumer.kafka"
-	logger.W(tag, "kafka,close consumers begin")
+	logger.GetLogger().Warnf("[%s] starting close consumers...", tag)
 	close(k.exit)
 	done := make(chan struct{})
 	go func() {
@@ -83,9 +82,9 @@ func (k *KafkaConsumer) Close() {
 	}()
 	select {
 	case <-done:
-		logger.W(tag, "kafka,close consumers wait for done")
+		logger.GetLogger().Warnf("[%s] close consumers wait for done", tag)
 	case <-time.After(time.Second * 2):
-		logger.E(tag, "kafka,close consumers wait timeout")
+		logger.GetLogger().Errorf("[%s] close consumers wait timeout", tag)
 	}
 }
 
@@ -97,7 +96,7 @@ func (k *KafkaConsumer) count() {
 		case <-t.C:
 			succ := atomic.SwapInt64(&k.successCount, 0)
 			fail := atomic.SwapInt64(&k.errorCount, 0)
-			logger.I(tag, "[Kafka Stat] success:%d,fail:%d", succ, fail)
+			logger.GetLogger().Warnf("[%s] [Kafka Stat] success:%d,fail:%d", tag, succ, fail)
 		}
 	}
 }
@@ -123,7 +122,7 @@ func (k *KafkaConsumer) initSarama(kfg *KafkaConfig) (cs *cluster.Consumer) {
 	cfg.Version = sarama.V0_11_0_2
 	cs, err := cluster.NewConsumer(kfg.Host, kfg.ConsumerGroup, strings.Split(kfg.Topic, ","), cfg)
 	if err != nil {
-		logger.F(tag, "newConsumer err:%v", err)
+		logger.GetLogger().Fatalf(tag, "newConsumer err:%v", tag, err)
 	}
 	if kfg.FailTopic != "" {
 		once.Do(func() {
@@ -140,9 +139,9 @@ func (k *KafkaConsumer) initSarama(kfg *KafkaConfig) (cs *cluster.Consumer) {
 			if len(kfg.FailHost) > 0 {
 				hosts = kfg.FailHost
 			}
-			logger.D(tag, "NewSyncProducer hosts:%v", hosts)
+			logger.GetLogger().Debugf(tag, "NewSyncProducer hosts:%v", tag, hosts)
 			if produce, err = sarama.NewSyncProducer(hosts, config); err != nil {
-				logger.F(tag, "NewSyncProducer err:%v", err)
+				logger.GetLogger().Fatalf(tag, "NewSyncProducer err:%v", tag, err)
 			}
 		})
 	}
@@ -153,7 +152,7 @@ func (k *KafkaConsumer) consume(config *KafkaConfig) {
 	tag := "xserver.consumer.kafka"
 	defer k.wg.Done()
 	defer k.recovery()
-	logger.I(tag, "Start consumer from broker %v", config.Host)
+	logger.GetLogger().Infof(tag, "Start consumer from broker:%v", tag, config.Host)
 	// 初始化消费队列
 	cs := k.initSarama(config)
 	if cs != nil {
@@ -162,21 +161,21 @@ func (k *KafkaConsumer) consume(config *KafkaConfig) {
 
 	go func(c *cluster.Consumer) {
 		for notification := range c.Notifications() {
-			logger.D(tag, "ReBalance:%+v", notification)
+			logger.GetLogger().Debugf(tag, "ReBalance:%+v", notification)
 		}
 	}(cs)
 	go func(c *cluster.Consumer) {
 		for err := range c.Errors() {
-			logger.E(tag, "consumer errors,err:%v", err)
+			logger.GetLogger().Errorf(tag, "consumer errors,err:%v", err)
 		}
 	}(cs)
 	for {
 		message := cs.Messages()
 		select {
 		case <-k.exit:
-			logger.W(tag, "[Quit] accept quit signal")
+			logger.GetLogger().Warnf(tag, "[Quit] accept quit signal")
 			if err := cs.CommitOffsets(); err != nil {
-				logger.E(tag, "[Quit] commit offset error:%v", err)
+				logger.GetLogger().Errorf(tag, "[Quit] commit offset error:%v", err)
 				time.Sleep(time.Second * 2)
 			}
 			return
@@ -189,25 +188,25 @@ func (k *KafkaConsumer) consume(config *KafkaConfig) {
 				ret := k.callback(config.Topic, event.Value, string(event.Key))
 				if ret == nil {
 					atomic.AddInt64(&k.successCount, int64(1))
-					logger.D(tag, "[Consumer] success,key:%s,offset:%d,partition:%d", string(event.Key), event.Offset, event.Partition)
+					logger.GetLogger().Debugf(tag, "[Consumer] success,key:%s,offset:%d,partition:%d", string(event.Key), event.Offset, event.Partition)
 					cs.MarkOffset(event, "")
 					break
 				} else {
-					logger.E(tag, "[Consumer] failed:key:%s,val:%s,offset:%d,partition:%d", string(event.Key), string(event.Value), event.Offset, event.Partition)
+					logger.GetLogger().Errorf(tag, "[Consumer] failed:key:%s,val:%s,offset:%d,partition:%d", string(event.Key), string(event.Value), event.Offset, event.Partition)
 					if count >= config.FailCount {
 						if config.FailTopic != "" {
 							for i := 0; i < 3; i++ {
 								if err := k.sendByHashPartition(config.FailTopic, event.Value, event.Value); err != nil {
-									logger.E(tag, "[Consumer] send to fail topic,topic:%s,val:%s,err:%v", config.FailTopic, string(event.Value), err)
+									logger.GetLogger().Errorf(tag, "[Consumer] send to fail topic,topic:%s,val:%s,err:%v", config.FailTopic, string(event.Value), err)
 									continue
 								}
 								break
 							}
-							logger.D(tag, "[Consumer] send to fail topic,key:%s,val:%s,offset:%d,partition:%d", string(event.Key), string(event.Value), event.Offset, event.Partition)
+							logger.GetLogger().Debugf(tag, "[Consumer] send to fail topic,key:%s,val:%s,offset:%d,partition:%d", string(event.Key), string(event.Value), event.Offset, event.Partition)
 							cs.MarkOffset(event, "")
 							break
 						} else {
-							logger.E(tag, "[Consumer] unset fail topic:key:%s,val:%s,offset:%d,partition:%d", string(event.Key), string(event.Value), event.Offset, event.Partition)
+							logger.GetLogger().Errorf(tag, "[Consumer] unset fail topic:key:%s,val:%s,offset:%d,partition:%d", string(event.Key), string(event.Value), event.Offset, event.Partition)
 							break
 						}
 					}
@@ -224,7 +223,7 @@ func (k *KafkaConsumer) sendByHashPartition(topic string, data []byte, key []byt
 	if partition, offset, err := produce.SendMessage(msg); err != nil {
 		errr = err
 	} else {
-		logger.D(tag, "[Fail Topic] sendByHashPartition,topic:%s,partition:%d,offset:%d,data:%s", topic, partition, offset, string(data))
+		logger.GetLogger().Debugf(tag, "[Fail Topic] sendByHashPartition,topic:%s,partition:%d,offset:%d,data:%s", topic, partition, offset, string(data))
 	}
 	return
 }
@@ -233,9 +232,9 @@ func (k *KafkaConsumer) recovery() {
 	tag := "xserver.consumer.kafka"
 	if rec := recover(); rec != nil {
 		if err, ok := rec.(error); ok {
-			logger.E(tag, "[Recovery] Unhandled error: %v\n stack:%v", err.Error(), cast.ToString(debug.Stack()))
+			logger.GetLogger().Errorf(tag, "[Recovery] Unhandled error: %v\n stack:%v", err.Error(), cast.ToString(debug.Stack()))
 		} else {
-			logger.E(tag, "[Recovery] Panic: %v\n stack:%v", rec, cast.ToString(debug.Stack()))
+			logger.GetLogger().Errorf(tag, "[Recovery] Panic: %v\n stack:%v", rec, cast.ToString(debug.Stack()))
 		}
 	}
 }
