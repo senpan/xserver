@@ -4,8 +4,8 @@ import (
 	"time"
 )
 
-// ServerOptions http server options
-type ServerOptions struct {
+// Options http server options
+type Options struct {
 	// run mode, options:debug,release
 	Mode string `ini:"mode" yaml:"mode"`
 	// TCP address to listen on, ":http" if empty
@@ -33,11 +33,55 @@ type ServerOptions struct {
 	IdleTimeout time.Duration `ini:"idleTimeout" yaml:"idleTimeout"`
 }
 
-func DefaultOptions() ServerOptions {
-	return ServerOptions{
+type OptionFunc func(*Options)
+
+func DefaultOptions() Options {
+	return Options{
 		Addr:         ":10086",
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 		IdleTimeout:  5 * time.Second,
+	}
+}
+
+func WithMode(mode string) OptionFunc {
+	return func(o *Options) {
+		o.Mode = mode
+	}
+}
+
+func WithAddr(addr string) OptionFunc {
+	return func(o *Options) {
+		o.Addr = addr
+	}
+}
+
+func WithGrace(grace bool) OptionFunc {
+	return func(o *Options) {
+		o.Grace = grace
+	}
+}
+
+func WithReadTimeout(readTimeout time.Duration) OptionFunc {
+	return func(o *Options) {
+		o.ReadTimeout = readTimeout
+	}
+}
+
+func WithWriteTimeout(writeTimeout time.Duration) OptionFunc {
+	return func(o *Options) {
+		o.WriteTimeout = writeTimeout
+	}
+}
+
+func WithIdleTimeout(idleTimeout time.Duration) OptionFunc {
+	return func(o *Options) {
+		o.IdleTimeout = idleTimeout
+	}
+}
+
+func WithConfig(conf Options) OptionFunc {
+	return func(o *Options) {
+		*o = conf
 	}
 }

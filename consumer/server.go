@@ -18,16 +18,21 @@ type MQConsumerServer struct {
 	funcSetter *bootstrap.FuncSetter
 	handlers   map[string]core.MQHandler
 	ctl        *ctrl.Ctrl
-	path       string
+	opts       Options
 	exit       chan struct{}
 }
 
 // NewMQConsumerServer creates a new MQ consumer server
-// @param path string 配置文件路径
-func NewMQConsumerServer(path string) *MQConsumerServer {
+func NewMQConsumerServer(options ...OptionFunc) *MQConsumerServer {
+	opts := DefaultOptions()
+
+	for _, o := range options {
+		o(&opts)
+	}
+
 	srv := new(MQConsumerServer)
 	srv.funcSetter = bootstrap.NewFuncSetter()
-	srv.path = path
+	srv.opts = opts
 	srv.exit = make(chan struct{})
 	return srv
 }
@@ -66,7 +71,7 @@ func (s *MQConsumerServer) regSignal() {
 }
 
 func (s *MQConsumerServer) doJob() {
-	c := ctrl.NewCtrl(s.path, s.handlers)
+	c := ctrl.NewCtrl(s.opts.path, s.handlers)
 	s.ctl = c
 }
 

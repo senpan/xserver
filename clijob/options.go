@@ -13,7 +13,7 @@ func DefaultOptions() Options {
 	}
 }
 
-func OptSetCmdParser(parser CmdParser) OptionFunc {
+func WithCmdParser(parser CmdParser) OptionFunc {
 	return func(o *Options) {
 		o.cmdParser = parser
 	}

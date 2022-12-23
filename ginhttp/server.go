@@ -18,12 +18,17 @@ import (
 type Server struct {
 	funcSetter *bootstrap.FuncSetter
 	server     *http.Server
-	opts       ServerOptions
+	opts       Options
 	exit       chan os.Signal
 }
 
-func NewServer() *Server {
+func NewServer(options ...OptionFunc) *Server {
 	opts := DefaultOptions()
+
+	for _, o := range options {
+		o(&opts)
+	}
+
 	s := new(Server)
 	s.opts = opts
 	s.funcSetter = bootstrap.NewFuncSetter()
@@ -47,6 +52,11 @@ func (s *Server) Serve() error {
 	err = s.funcSetter.RunStartFunc()
 	if err != nil {
 		return err
+	}
+
+	if s.opts.Mode != "" {
+		_ = os.Setenv(gin.EnvGinMode, s.opts.Mode)
+		gin.SetMode(s.opts.Mode)
 	}
 
 	if s.opts.Grace && runtime.GOOS != "windows" {
@@ -92,21 +102,6 @@ func (s *Server) AddStartFunc(fns ...bootstrap.ServerStartFunc) {
 
 func (s *Server) AddStopFunc(fns ...bootstrap.ServerStopFunc) {
 	s.funcSetter.AddStopFunc(fns...)
-}
-
-func (s *Server) InitConfig(conf ServerOptions) bootstrap.ServerStartFunc {
-	return func() error {
-		s.opts = conf
-		s.server.Addr = s.opts.Addr
-		s.server.ReadTimeout = s.opts.ReadTimeout
-		s.server.WriteTimeout = s.opts.WriteTimeout
-		s.server.IdleTimeout = s.opts.IdleTimeout
-		if s.opts.Mode != "" {
-			_ = os.Setenv(gin.EnvGinMode, s.opts.Mode)
-			gin.SetMode(s.opts.Mode)
-		}
-		return nil
-	}
 }
 
 func formatSvcAddr(addr string) string {
