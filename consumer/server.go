@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/senpan/xserver/bootstrap"
-	"github.com/senpan/xserver/consumer/core"
+	"github.com/senpan/xserver/consumer/handler"
 	"github.com/senpan/xserver/consumer/internal/ctrl"
 	"github.com/senpan/xserver/logger"
 )
@@ -16,7 +16,7 @@ type MQHandler func(topic string, data []byte, other ...string) error
 
 type MQConsumerServer struct {
 	funcSetter *bootstrap.FuncSetter
-	handlers   map[string]core.MQHandler
+	handlers   map[string]handler.MQHandler
 	ctl        *ctrl.Ctrl
 	opts       Options
 	exit       chan struct{}
@@ -59,8 +59,11 @@ func (s *MQConsumerServer) waitShutdown() {
 	s.exit <- struct{}{}
 }
 
-func (s *MQConsumerServer) AddHandler(name string, fn core.MQHandler) {
-	s.handlers[name] = fn
+func (s *MQConsumerServer) AddHandler(name string, fn handler.TaskFunc) {
+	s.handlers[name] = handler.MQHandler{
+		Name: name,
+		Task: fn,
+	}
 }
 
 func (s *MQConsumerServer) regSignal() {

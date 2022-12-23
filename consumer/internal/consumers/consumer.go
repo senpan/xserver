@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/senpan/xserver/consumer/core"
+	"github.com/senpan/xserver/consumer/handler"
 	"github.com/senpan/xserver/logger"
 )
 
@@ -27,7 +27,7 @@ type Configure struct {
 	Rocketmq []*RocketMQConfig `json:"rocketmq"`
 }
 
-func NewConsumerManager(path string, handlers map[string]core.MQHandler) *ConsumerManager {
+func NewConsumerManager(path string, handlers map[string]handler.MQHandler) *ConsumerManager {
 	tag := "xserver.consumer.consumerManager"
 	var err error
 	manager := new(ConsumerManager)

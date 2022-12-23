@@ -12,13 +12,13 @@ import (
 	"github.com/apache/rocketmq-client-go/v2/rlog"
 	"github.com/spf13/cast"
 
-	"github.com/senpan/xserver/consumer/core"
+	"github.com/senpan/xserver/consumer/handler"
 	"github.com/senpan/xserver/logger"
 )
 
 type RocketMQConsumer struct {
 	exit     chan struct{}
-	callback core.MQHandler
+	callback handler.MQHandler
 	wg       *sync.WaitGroup
 }
 
@@ -47,7 +47,7 @@ type RocketMQCredentials struct {
 	SecurityToken string `json:"securityToken"`
 }
 
-func NewRocketMQConsumer(configs []*RocketMQConfig, handlers map[string]core.MQHandler) (consumer *RocketMQConsumer, err error) {
+func NewRocketMQConsumer(configs []*RocketMQConfig, handlers map[string]handler.MQHandler) (consumer *RocketMQConsumer, err error) {
 	tag := "xserver.consumer.rocketmq"
 	if len(configs) == 0 {
 		err = errors.New("rocketmq config not found")
@@ -110,7 +110,7 @@ func (r *RocketMQConsumer) pushConsumer(kfg *RocketMQConfig) {
 		messages ...*primitive.MessageExt) (consumer.ConsumeResult, error) {
 		for _, me := range messages {
 			for {
-				ret := r.callback(me.Topic, me.Body, me.GetTags())
+				ret := r.callback.Do(me.Topic, me.Body, me.GetTags())
 				if ret == nil {
 					logger.GetLogger().Debugf(tag, "[Push Consumer] success,topic:%s,tags:%s,handler:%s", me.Topic, me.GetTags(), kfg.Handler)
 					break

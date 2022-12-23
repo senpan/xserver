@@ -12,7 +12,7 @@ import (
 	cluster "github.com/bsm/sarama-cluster"
 	"github.com/spf13/cast"
 
-	"github.com/senpan/xserver/consumer/core"
+	"github.com/senpan/xserver/consumer/handler"
 	"github.com/senpan/xserver/logger"
 )
 
@@ -21,7 +21,7 @@ var once = new(sync.Once)
 
 type KafkaConsumer struct {
 	exit         chan struct{}
-	callback     core.MQHandler
+	callback     handler.MQHandler
 	successCount int64
 	errorCount   int64
 	wg           *sync.WaitGroup
@@ -45,7 +45,7 @@ type SASL struct {
 	Password string `json:"password"`
 }
 
-func NewKafkaConsumer(configs []*KafkaConfig, handlers map[string]core.MQHandler) (consumer *KafkaConsumer, err error) {
+func NewKafkaConsumer(configs []*KafkaConfig, handlers map[string]handler.MQHandler) (consumer *KafkaConsumer, err error) {
 	tag := "xserver.consumer.kafka"
 	if len(configs) == 0 {
 		err = errors.New("kafka config not found")
@@ -185,7 +185,7 @@ func (k *KafkaConsumer) consume(config *KafkaConfig) {
 			}
 			count := 0
 			for {
-				ret := k.callback(config.Topic, event.Value, string(event.Key))
+				ret := k.callback.Do(config.Topic, event.Value, string(event.Key))
 				if ret == nil {
 					atomic.AddInt64(&k.successCount, int64(1))
 					logger.GetLogger().Debugf(tag, "[Consumer] success,key:%s,offset:%d,partition:%d", string(event.Key), event.Offset, event.Partition)
